@@ -1,0 +1,36 @@
+﻿version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: campus-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: campus_platform
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  redis:
+    image: redis:7.2
+    container_name: campus-redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: campus-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  nginx:
+    image: nginx:1.27
+    container_name: campus-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+
+# Add backend and frontend service containers after local compile/build.

@@ -1,0 +1,51 @@
+﻿server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+        - id: lost-found-service
+          uri: lb://lost-found-service
+          predicates:
+            - Path=/api/lost-found/**
+        - id: upload-service
+          uri: lb://lost-found-service
+          predicates:
+            - Path=/api/upload/**
+        - id: activity-service
+          uri: lb://activity-service
+          predicates:
+            - Path=/api/activities/**
+        - id: market-service
+          uri: lb://market-service
+          predicates:
+            - Path=/api/market/**
+        - id: market-websocket
+          uri: lb://market-service
+          predicates:
+            - Path=/ws-market/**
+        - id: stats-service
+          uri: lb://stats-service
+          predicates:
+            - Path=/api/stats/**
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

@@ -1,0 +1,25 @@
+﻿server:
+  port: 9003
+
+spring:
+  application:
+    name: activity-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/campus_platform?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka

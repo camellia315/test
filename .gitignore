@@ -1,0 +1,10 @@
+# 项目排除路径
+/backend/activity-service/target/
+/backend/api-gateway/target/
+/backend/common-core/target/
+/backend/dev-launcher/target/
+/backend/lost-found-service/target/
+/backend/market-service/target/
+/backend/service-discovery/target/
+/backend/stats-service/target/
+/backend/user-service/target/

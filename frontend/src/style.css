@@ -1,0 +1,73 @@
+﻿:root {
+  --el-color-primary: #4f46e5; /* 更现代的靛蓝色 */
+  --el-color-primary-light-3: #818cf8;
+  --el-color-primary-light-9: #eef2ff;
+  --bg-color: #f3f4f6;
+  --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --transition-base: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-color);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 页面卡片容器通用样式 */
+.page-card {
+  background: #fff;
+  border-radius: 16px; /* 更大的圆角 */
+  padding: 24px;
+  box-shadow: var(--card-shadow);
+  border: 1px solid rgba(229, 231, 235, 0.5);
+  transition: var(--transition-base);
+}
+
+.page-title {
+  margin: 0 0 20px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-title::before {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 18px;
+  background: var(--el-color-primary);
+  border-radius: 2px;
+}
+
+/* 路由过渡动画 */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
