@@ -32,8 +32,20 @@ export function pageActivityApplies(id, params) {
   return http.get(`/api/activities/${id}/applies`, { params })
 }
 
+export function pageMyJoinedActivities(params) {
+  return http.get('/api/activities/joined', { params })
+}
+
 export function reviewActivityApply(activityId, applyId, payload) {
   return http.patch(`/api/activities/${activityId}/applies/${applyId}/review`, payload)
+}
+
+export function stopActivity(id, params) {
+  return http.patch(`/api/activities/${id}/stop`, null, { params })
+}
+
+export function removeActivity(id, params) {
+  return http.delete(`/api/activities/${id}`, { params })
 }
 
 export function pagePendingAuditActivities(params) {

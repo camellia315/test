@@ -19,6 +19,9 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 
+auth:
+  admin-user-ids: 1
+
 eureka:
   client:
     service-url:

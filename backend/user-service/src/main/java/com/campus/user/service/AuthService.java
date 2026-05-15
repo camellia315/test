@@ -25,9 +25,13 @@ public interface AuthService {
 
     List<UserSearchItem> searchUsers(String authorizationHeader, String keyword, int size);
 
+    List<String> getCurrentRoles(String authorizationHeader);
+
     Map<String, Object> adminOverview(String authorizationHeader);
 
     Map<String, Object> adminPage(String authorizationHeader, String keyword, Integer status, int page, int size);
 
     UserEntity adminUpdateStatus(String authorizationHeader, Long targetUserId, Integer status);
+
+    Map<String, Object> getUserSpace(String authorizationHeader, Long targetUserId);
 }

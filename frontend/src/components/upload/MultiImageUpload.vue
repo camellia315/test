@@ -19,6 +19,8 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { deleteImage, uploadImage } from '../../api/upload'
+import { normalizeImageUrl } from '../../utils/image'
+import { prepareImageForUpload, UPLOAD_RAW_MAX_BYTES } from '../../utils/uploadImage'
 
 const props = defineProps({
   modelValue: {
@@ -48,7 +50,7 @@ watch(
     fileList.value = newVal.split(',').filter(Boolean).map((url, index) => ({
       uid: `${Date.now()}-${index}`,
       name: `图片${index + 1}`,
-      url
+      url: normalizeImageUrl(url)
     }))
   },
   { immediate: true }
@@ -56,32 +58,40 @@ watch(
 
 const beforeUpload = (file) => {
   const isImage = file.type && file.type.startsWith('image/')
-  const isLt5M = file.size / 1024 / 1024 <= 5
+  const isLtRawLimit = file.size <= UPLOAD_RAW_MAX_BYTES
 
   if (!isImage) {
     ElMessage.error({ message: '只能上传图片文件', duration: 1500 })
     return false
   }
-  if (!isLt5M) {
-    ElMessage.error({ message: '图片大小不能超过 5MB', duration: 1500 })
+  if (!isLtRawLimit) {
+    ElMessage.error({ message: `图片原始大小不能超过 ${Math.floor(UPLOAD_RAW_MAX_BYTES / 1024 / 1024)}MB`, duration: 1800 })
     return false
   }
   return true
 }
 
 const handleUpload = async (options) => {
-  const formData = new FormData()
-  formData.append('file', options.file)
-  formData.append('type', props.type)
   try {
+    const prepared = await prepareImageForUpload(options.file)
+    const formData = new FormData()
+    formData.append('file', prepared.uploadFile)
+    formData.append('type', props.type)
+
     const resp = await uploadImage(formData)
     if (!resp || resp.code !== 0 || !resp.data?.url) {
       throw new Error(resp?.message || '上传失败')
     }
+    if (prepared.compressed) {
+      ElMessage.info({
+        message: `图片已自动压缩：${(prepared.originalSize / 1024 / 1024).toFixed(1)}MB -> ${(prepared.finalSize / 1024 / 1024).toFixed(1)}MB`,
+        duration: 2200
+      })
+    }
     fileList.value.push({
       uid: `${Date.now()}-${Math.random()}`,
-      name: options.file.name,
-      url: resp.data.url
+      name: prepared.uploadFile.name || options.file.name,
+      url: normalizeImageUrl(resp.data.url)
     })
     updateValue()
     ElMessage.success({ message: '上传成功', duration: 1500 })

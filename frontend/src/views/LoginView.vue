@@ -50,8 +50,8 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { fetchCurrentUser, loginUser, registerUser } from '../api/user'
-import { setToken, setUser } from '../utils/auth'
+import { fetchCurrentUser, fetchUserRoles, loginUser, registerUser } from '../api/user'
+import { setRoles, setToken, setUser } from '../utils/auth'
 
 const router = useRouter()
 const activeTab = ref('login')
@@ -97,6 +97,12 @@ const submitLogin = async () => {
     } catch {
     }
     setUser(userInfo)
+    try {
+      const rolesData = checkResp(await fetchUserRoles(), '获取角色失败')
+      setRoles(Array.isArray(rolesData?.roles) ? rolesData.roles : [])
+    } catch {
+      setRoles([])
+    }
 
     ElMessage.success({ message: '登录成功', duration: 1500 })
     router.push('/dashboard')

@@ -2,6 +2,7 @@ import { ref } from 'vue'
 
 const TOKEN_KEY = 'campus_token'
 const USER_KEY = 'campus_user'
+const ROLE_KEY = 'campus_roles'
 
 function readUserFromStorage() {
   if (typeof window === 'undefined') return null
@@ -19,6 +20,22 @@ function readUserFromStorage() {
 }
 
 const userRef = ref(readUserFromStorage())
+const rolesRef = ref(readRolesFromStorage())
+
+function readRolesFromStorage() {
+  if (typeof window === 'undefined') return []
+  const raw = localStorage.getItem(ROLE_KEY)
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item) => typeof item === 'string' && item.trim())
+    }
+    return []
+  } catch {
+    return []
+  }
+}
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -55,9 +72,31 @@ export function clearUser() {
   userRef.value = null
 }
 
+export function getRoles() {
+  return Array.isArray(rolesRef.value) ? rolesRef.value : []
+}
+
+export function getRolesRef() {
+  return rolesRef
+}
+
+export function setRoles(roles) {
+  const normalized = Array.isArray(roles)
+    ? roles.filter((item) => typeof item === 'string' && item.trim())
+    : []
+  localStorage.setItem(ROLE_KEY, JSON.stringify(normalized))
+  rolesRef.value = normalized
+}
+
+export function clearRoles() {
+  localStorage.removeItem(ROLE_KEY)
+  rolesRef.value = []
+}
+
 export function clearAuth() {
   clearToken()
   clearUser()
+  clearRoles()
 }
 
 export function isLoggedIn() {
@@ -68,6 +107,9 @@ if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key === USER_KEY) {
       userRef.value = readUserFromStorage()
+    }
+    if (event.key === ROLE_KEY) {
+      rolesRef.value = readRolesFromStorage()
     }
   })
 }

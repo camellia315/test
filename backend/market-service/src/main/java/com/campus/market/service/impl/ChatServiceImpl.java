@@ -83,6 +83,20 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
+    public ChatSession ensureSession(Long userId, Long otherUserId) {
+        validateSessionPair(userId, otherUserId);
+        ChatSession session = chatSessionMapper.selectByUserAndOther(userId, otherUserId);
+        if (session == null) {
+            session = createEmptySession(userId, otherUserId);
+        }
+        if (chatSessionMapper.selectByUserAndOther(otherUserId, userId) == null) {
+            createEmptySession(otherUserId, userId);
+        }
+        return session;
+    }
+
+    @Override
+    @Transactional
     public Map<String, Object> markRead(ChatReadRequest request) {
         if (request == null || request.getUserId() == null || request.getOtherUserId() == null) {
             throw new BusinessException(400, "userId and otherUserId are required");
@@ -111,6 +125,21 @@ public class ChatServiceImpl implements ChatService {
         return result;
     }
 
+    @Override
+    @Transactional
+    public Map<String, Object> deleteSession(Long userId, Long otherUserId) {
+        if (userId == null || otherUserId == null) {
+            throw new BusinessException(400, "userId and otherUserId are required");
+        }
+        LambdaQueryWrapper<ChatSession> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getOtherUserId, otherUserId);
+        int deleted = chatSessionMapper.delete(wrapper);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("deleted", deleted);
+        return result;
+    }
+
     private void validateSendRequest(ChatSendRequest request) {
         if (request == null || request.getFromUserId() == null || request.getToUserId() == null) {
             throw new BusinessException(400, "fromUserId and toUserId are required");
@@ -121,6 +150,27 @@ public class ChatServiceImpl implements ChatService {
         if (!StringUtils.hasText(request.getContent())) {
             throw new BusinessException(400, "content is required");
         }
+    }
+
+    private void validateSessionPair(Long userId, Long otherUserId) {
+        if (userId == null || otherUserId == null) {
+            throw new BusinessException(400, "userId and otherUserId are required");
+        }
+        if (Objects.equals(userId, otherUserId)) {
+            throw new BusinessException(409, "cannot chat with yourself");
+        }
+    }
+
+    private ChatSession createEmptySession(Long userId, Long otherUserId) {
+        ChatSession session = new ChatSession();
+        session.setUserId(userId);
+        session.setOtherUserId(otherUserId);
+        session.setLastMessage("");
+        session.setUnreadCount(0);
+        session.setUpdateTime(LocalDateTime.now());
+        chatSessionMapper.insert(session);
+        ChatSession latest = chatSessionMapper.selectByUserAndOther(userId, otherUserId);
+        return latest == null ? session : latest;
     }
 
     private void upsertSession(Long userId, Long otherUserId, String lastMessage, boolean increaseUnread) {
@@ -164,4 +214,3 @@ public class ChatServiceImpl implements ChatService {
         return response;
     }
 }
-

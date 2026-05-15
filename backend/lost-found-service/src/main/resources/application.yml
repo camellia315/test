@@ -19,11 +19,11 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 qiniu:
-  enabled: ${QINIU_ENABLED:false}
+  enabled: ${QINIU_ENABLED:true}
   access-key: sjOt6KjH0pEnfkZPeCvAsxC4kd2uWYHFk_2vS8ca
   secret-key: gTH800Okm6z43OQfBbrQx2--48NT21R2NIGOSoth
   bucket: campus-platform0
-  domain: http://img.camellia315.xyz
+  domain: https://img.camellia315.xyz
   region: huanan
   prefix:
     lost-found: lost-found/

@@ -19,6 +19,7 @@ mybatis-plus:
 
 auth:
   token-expire-seconds: 7200
+  admin-user-ids: 1
 
 eureka:
   client:

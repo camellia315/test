@@ -39,6 +39,7 @@ public class ProductServiceImpl implements ProductService {
     private static final int STATUS_OFFLINE = 0;
     private static final int STATUS_ON_SALE = 1;
     private static final int STATUS_SOLD = 2;
+    private static final int DEFAULT_TOTAL_QUANTITY = 1;
 
     private final ProductMapper productMapper;
     private final ProductCategoryMapper productCategoryMapper;
@@ -123,6 +124,10 @@ public class ProductServiceImpl implements ProductService {
         product.setStatus(STATUS_ON_SALE);
         product.setViewCount(0);
         product.setFavoriteCount(0);
+        product.setSoldQuantity(0);
+        if (product.getTotalQuantity() == null || product.getTotalQuantity() <= 0) {
+            product.setTotalQuantity(DEFAULT_TOTAL_QUANTITY);
+        }
         product.setCreateTime(LocalDateTime.now());
         product.setUpdateTime(LocalDateTime.now());
         productMapper.insert(product);
@@ -142,6 +147,16 @@ public class ProductServiceImpl implements ProductService {
             throw new BusinessException(403, "sellerId cannot be changed");
         }
         mergeProduct(product, request);
+        Integer soldQuantity = safeSoldQuantity(product);
+        Integer totalQuantity = safeTotalQuantity(product);
+        if (totalQuantity < soldQuantity) {
+            throw new BusinessException(400, "totalQuantity cannot be less than soldQuantity");
+        }
+        if (soldQuantity >= totalQuantity) {
+            product.setStatus(STATUS_SOLD);
+        } else if (Objects.equals(product.getStatus(), STATUS_SOLD)) {
+            product.setStatus(STATUS_ON_SALE);
+        }
         product.setUpdateTime(LocalDateTime.now());
         productMapper.updateById(product);
         evictRecommendCache(product.getSellerId());
@@ -159,6 +174,9 @@ public class ProductServiceImpl implements ProductService {
         }
         Product product = getProductOrThrow(productId);
         ensureSeller(product, request.getOperatorUserId());
+        if (request.getStatus() == STATUS_ON_SALE && safeSoldQuantity(product) >= safeTotalQuantity(product)) {
+            throw new BusinessException(409, "stock is sold out, cannot set on sale");
+        }
         product.setStatus(request.getStatus());
         product.setUpdateTime(LocalDateTime.now());
         productMapper.updateById(product);
@@ -307,6 +325,9 @@ public class ProductServiceImpl implements ProductService {
         if (request.getSellerId() == null) {
             throw new BusinessException(400, "sellerId is required");
         }
+        if (request.getTotalQuantity() != null && request.getTotalQuantity() <= 0) {
+            throw new BusinessException(400, "totalQuantity must be greater than 0");
+        }
     }
 
     private void mergeProduct(Product target, ProductUpsertRequest request) {
@@ -319,6 +340,17 @@ public class ProductServiceImpl implements ProductService {
         target.setOriginalPrice(request.getOriginalPrice());
         target.setCategoryId(request.getCategoryId());
         target.setTags(request.getTags());
+        if (request.getTotalQuantity() != null) {
+            target.setTotalQuantity(normalizeTotalQuantity(request.getTotalQuantity()));
+        } else if (target.getTotalQuantity() == null || target.getTotalQuantity() <= 0) {
+            target.setTotalQuantity(DEFAULT_TOTAL_QUANTITY);
+        }
+        if (target.getSoldQuantity() == null || target.getSoldQuantity() < 0) {
+            target.setSoldQuantity(0);
+        }
+        if (target.getSoldQuantity() > target.getTotalQuantity()) {
+            target.setSoldQuantity(target.getTotalQuantity());
+        }
         target.setSellerId(request.getSellerId());
     }
 
@@ -398,6 +430,27 @@ public class ProductServiceImpl implements ProductService {
         return Math.min(size, 100);
     }
 
+    private int normalizeTotalQuantity(Integer totalQuantity) {
+        if (totalQuantity == null || totalQuantity <= 0) {
+            return DEFAULT_TOTAL_QUANTITY;
+        }
+        return Math.min(totalQuantity, 100000);
+    }
+
+    private int safeTotalQuantity(Product product) {
+        if (product == null || product.getTotalQuantity() == null || product.getTotalQuantity() <= 0) {
+            return DEFAULT_TOTAL_QUANTITY;
+        }
+        return product.getTotalQuantity();
+    }
+
+    private int safeSoldQuantity(Product product) {
+        if (product == null || product.getSoldQuantity() == null || product.getSoldQuantity() < 0) {
+            return 0;
+        }
+        return product.getSoldQuantity();
+    }
+
     private Map<String, Object> toPageData(Page<?> result) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("records", result.getRecords());
@@ -416,4 +469,3 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 }
-

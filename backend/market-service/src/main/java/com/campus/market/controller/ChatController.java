@@ -3,12 +3,14 @@ package com.campus.market.controller;
 import com.campus.common.api.ApiResponse;
 import com.campus.market.dto.ChatReadRequest;
 import com.campus.market.dto.ChatSendRequest;
+import com.campus.market.dto.ChatSessionEnsureRequest;
 import com.campus.market.entity.ChatMessageEntity;
 import com.campus.market.entity.ChatSession;
 import com.campus.market.service.ChatService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -49,6 +51,14 @@ public class ChatController {
         return ApiResponse.success(chatService.listSessions(userId));
     }
 
+    @PostMapping("/sessions/ensure")
+    public ApiResponse<ChatSession> ensureSession(@RequestBody ChatSessionEnsureRequest request) {
+        if (request == null) {
+            return ApiResponse.success(null);
+        }
+        return ApiResponse.success(chatService.ensureSession(request.getUserId(), request.getOtherUserId()));
+    }
+
     @GetMapping("/messages")
     public ApiResponse<Map<String, Object>> messages(@RequestParam Long userId,
                                                      @RequestParam Long otherUserId,
@@ -67,6 +77,12 @@ public class ChatController {
         return ApiResponse.success(chatService.unreadSummary(userId));
     }
 
+    @DeleteMapping("/sessions")
+    public ApiResponse<Map<String, Object>> deleteSession(@RequestParam Long userId,
+                                                          @RequestParam Long otherUserId) {
+        return ApiResponse.success(chatService.deleteSession(userId, otherUserId));
+    }
+
     private void pushMessage(ChatMessageEntity message) {
         String targetQueue = "/queue/market.chat." + message.getToUserId();
         String selfQueue = "/queue/market.chat." + message.getFromUserId();
@@ -74,4 +90,3 @@ public class ChatController {
         messagingTemplate.convertAndSend(selfQueue, message);
     }
 }
-

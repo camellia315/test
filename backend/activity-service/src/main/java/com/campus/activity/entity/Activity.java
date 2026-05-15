@@ -1,6 +1,7 @@
 package com.campus.activity.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -23,7 +24,10 @@ public class Activity {
     private Integer applyAuditRequired;
     private Long clubId;
     private Long userId;
+    private Long organizerId;
     private LocalDateTime createTime;
+    @TableField(exist = false)
+    private Integer currentUserApplyStatus;
 
     public Long getId() {
         return id;
@@ -137,11 +141,27 @@ public class Activity {
         this.userId = userId;
     }
 
+    public Long getOrganizerId() {
+        return organizerId;
+    }
+
+    public void setOrganizerId(Long organizerId) {
+        this.organizerId = organizerId;
+    }
+
     public LocalDateTime getCreateTime() {
         return createTime;
     }
 
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;
+    }
+
+    public Integer getCurrentUserApplyStatus() {
+        return currentUserApplyStatus;
+    }
+
+    public void setCurrentUserApplyStatus(Integer currentUserApplyStatus) {
+        this.currentUserApplyStatus = currentUserApplyStatus;
     }
 }

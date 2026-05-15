@@ -48,6 +48,8 @@ public class MarketSchemaCompatibilityRunner implements ApplicationRunner {
                 "status TINYINT DEFAULT 1," +
                 "view_count INT DEFAULT 0," +
                 "favorite_count INT DEFAULT 0," +
+                "total_quantity INT DEFAULT 1," +
+                "sold_quantity INT DEFAULT 0," +
                 "seller_id BIGINT NOT NULL," +
                 "create_time DATETIME DEFAULT CURRENT_TIMESTAMP," +
                 "update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
@@ -69,6 +71,10 @@ public class MarketSchemaCompatibilityRunner implements ApplicationRunner {
                 "price DECIMAL(10,2) NOT NULL," +
                 "status TINYINT DEFAULT 0," +
                 "remark VARCHAR(500)," +
+                "pay_status TINYINT DEFAULT 0," +
+                "pay_time DATETIME," +
+                "pay_channel VARCHAR(32)," +
+                "pay_order_no VARCHAR(64)," +
                 "create_time DATETIME DEFAULT CURRENT_TIMESTAMP," +
                 "update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
@@ -129,6 +135,10 @@ public class MarketSchemaCompatibilityRunner implements ApplicationRunner {
                 "ALTER TABLE product ADD COLUMN view_count INT DEFAULT 0");
         ensureColumn("product", "favorite_count",
                 "ALTER TABLE product ADD COLUMN favorite_count INT DEFAULT 0");
+        ensureColumn("product", "total_quantity",
+                "ALTER TABLE product ADD COLUMN total_quantity INT DEFAULT 1");
+        ensureColumn("product", "sold_quantity",
+                "ALTER TABLE product ADD COLUMN sold_quantity INT DEFAULT 0");
         ensureColumn("product", "seller_id",
                 "ALTER TABLE product ADD COLUMN seller_id BIGINT NOT NULL DEFAULT 0");
         ensureColumn("product", "create_time",
@@ -157,6 +167,14 @@ public class MarketSchemaCompatibilityRunner implements ApplicationRunner {
                 "ALTER TABLE market_order ADD COLUMN status TINYINT DEFAULT 0");
         ensureColumn("market_order", "remark",
                 "ALTER TABLE market_order ADD COLUMN remark VARCHAR(500)");
+        ensureColumn("market_order", "pay_status",
+                "ALTER TABLE market_order ADD COLUMN pay_status TINYINT DEFAULT 0");
+        ensureColumn("market_order", "pay_time",
+                "ALTER TABLE market_order ADD COLUMN pay_time DATETIME");
+        ensureColumn("market_order", "pay_channel",
+                "ALTER TABLE market_order ADD COLUMN pay_channel VARCHAR(32)");
+        ensureColumn("market_order", "pay_order_no",
+                "ALTER TABLE market_order ADD COLUMN pay_order_no VARCHAR(64)");
         ensureColumn("market_order", "create_time",
                 "ALTER TABLE market_order ADD COLUMN create_time DATETIME DEFAULT CURRENT_TIMESTAMP");
         ensureColumn("market_order", "update_time",
@@ -232,6 +250,16 @@ public class MarketSchemaCompatibilityRunner implements ApplicationRunner {
         if (hasColumn("chat_message", "sent_at")) {
             jdbcTemplate.update("UPDATE chat_message SET create_time = sent_at WHERE create_time IS NULL");
         }
+        if (hasColumn("product", "total_quantity")) {
+            jdbcTemplate.update("UPDATE product SET total_quantity = 1 WHERE total_quantity IS NULL OR total_quantity <= 0");
+        }
+        if (hasColumn("product", "sold_quantity")) {
+            jdbcTemplate.update("UPDATE product SET sold_quantity = 0 WHERE sold_quantity IS NULL OR sold_quantity < 0");
+        }
+        if (hasColumn("product", "total_quantity") && hasColumn("product", "sold_quantity")) {
+            jdbcTemplate.update("UPDATE product SET sold_quantity = LEAST(sold_quantity, total_quantity)");
+            jdbcTemplate.update("UPDATE product SET status = 2 WHERE sold_quantity >= total_quantity");
+        }
     }
 
     private void ensureColumn(String tableName, String columnName, String ddl) {
@@ -281,4 +309,3 @@ public class MarketSchemaCompatibilityRunner implements ApplicationRunner {
         jdbcTemplate.execute(ddl);
     }
 }
-

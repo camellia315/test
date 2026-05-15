@@ -20,9 +20,11 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +43,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Value("${auth.token-expire-seconds:7200}")
     private long tokenExpireSeconds;
+
+    @Value("${auth.admin-user-ids:1}")
+    private String adminUserIdsConfig;
 
     public AuthServiceImpl(UserMapper userMapper,
                            PasswordEncoder passwordEncoder,
@@ -108,7 +113,10 @@ public class AuthServiceImpl implements AuthService {
                 "userId", safe(user.getUserId()),
                 "userNo", safe(user.getUserNo()),
                 "email", user.getEmail() == null ? "" : user.getEmail(),
-                "phone", user.getPhone() == null ? "" : user.getPhone()
+                "phone", user.getPhone() == null ? "" : user.getPhone(),
+                "avatarUrl", safe(user.getAvatarUrl()),
+                "bio", safe(user.getBio()),
+                "homepageCover", safe(user.getHomepageCover())
         );
         return Map.of(
                 "token", token,
@@ -138,6 +146,9 @@ public class AuthServiceImpl implements AuthService {
         String customUserId = normalizeCustomUserId(request == null ? null : request.getUserId());
         String email = request == null ? null : normalize(request.getEmail());
         String phone = request == null ? null : normalize(request.getPhone());
+        String avatarUrl = request == null ? null : normalize(request.getAvatarUrl());
+        String bio = request == null ? null : normalize(request.getBio());
+        String homepageCover = request == null ? null : normalize(request.getHomepageCover());
 
         if (customUserId != null && !customUserId.equals(user.getUserId())
                 && existsByCustomUserId(customUserId, user.getId())) {
@@ -149,12 +160,24 @@ public class AuthServiceImpl implements AuthService {
         if (phone != null && phone.length() > 32) {
             throw new BusinessException(400, "手机号长度不能超过32个字符");
         }
+        if (avatarUrl != null && avatarUrl.length() > 512) {
+            throw new BusinessException(400, "头像地址长度不能超过512个字符");
+        }
+        if (bio != null && bio.length() > 512) {
+            throw new BusinessException(400, "个人简介长度不能超过512个字符");
+        }
+        if (homepageCover != null && homepageCover.length() > 512) {
+            throw new BusinessException(400, "主页封面地址长度不能超过512个字符");
+        }
 
         if (customUserId != null) {
             user.setUserId(customUserId);
         }
         user.setEmail(email);
         user.setPhone(phone);
+        user.setAvatarUrl(avatarUrl);
+        user.setBio(bio);
+        user.setHomepageCover(homepageCover);
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
         return userMapper.selectById(user.getId());
@@ -229,8 +252,17 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    public List<String> getCurrentRoles(String authorizationHeader) {
+        UserEntity user = getCurrentUser(authorizationHeader);
+        if (isAdminUser(user)) {
+            return List.of("USER", "AUDITOR", "ADMIN");
+        }
+        return List.of("USER");
+    }
+
+    @Override
     public Map<String, Object> adminOverview(String authorizationHeader) {
-        getCurrentUser(authorizationHeader);
+        requireAdmin(authorizationHeader);
 
         Long totalUsers = userMapper.selectCount(new LambdaQueryWrapper<>());
         Long activeUsers = userMapper.selectCount(new LambdaQueryWrapper<UserEntity>()
@@ -262,7 +294,7 @@ public class AuthServiceImpl implements AuthService {
                                          Integer status,
                                          int page,
                                          int size) {
-        getCurrentUser(authorizationHeader);
+        requireAdmin(authorizationHeader);
 
         int current = Math.max(1, page);
         int limit = Math.max(1, Math.min(size, 100));
@@ -296,7 +328,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserEntity adminUpdateStatus(String authorizationHeader, Long targetUserId, Integer status) {
-        UserEntity currentUser = getCurrentUser(authorizationHeader);
+        UserEntity currentUser = requireAdmin(authorizationHeader);
         if (targetUserId == null || targetUserId <= 0) {
             throw new BusinessException(400, "用户ID不合法");
         }
@@ -319,6 +351,30 @@ public class AuthServiceImpl implements AuthService {
         targetUser.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(targetUser);
         return ensureIdentityFields(userMapper.selectById(targetUserId));
+    }
+
+    @Override
+    public Map<String, Object> getUserSpace(String authorizationHeader, Long targetUserId) {
+        UserEntity current = getCurrentUser(authorizationHeader);
+        Long id = targetUserId == null || targetUserId <= 0 ? current.getId() : targetUserId;
+        UserEntity target = userMapper.selectById(id);
+        if (target == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+        if (target.getStatus() != null && target.getStatus() == 0) {
+            throw new BusinessException(403, "该用户主页不可访问");
+        }
+        target = ensureIdentityFields(target);
+        Map<String, Object> space = new LinkedHashMap<>();
+        space.put("id", target.getId());
+        space.put("username", safe(target.getUsername()));
+        space.put("userId", safe(target.getUserId()));
+        space.put("userNo", safe(target.getUserNo()));
+        space.put("avatarUrl", safe(target.getAvatarUrl()));
+        space.put("bio", safe(target.getBio()));
+        space.put("homepageCover", safe(target.getHomepageCover()));
+        space.put("isSelf", current.getId().equals(target.getId()));
+        return space;
     }
 
     private UserEntity findByUsername(String username) {
@@ -362,6 +418,41 @@ public class AuthServiceImpl implements AuthService {
         item.put("createdAt", user.getCreatedAt() == null ? "" : user.getCreatedAt().toString());
         item.put("updatedAt", user.getUpdatedAt() == null ? "" : user.getUpdatedAt().toString());
         return item;
+    }
+
+    private UserEntity requireAdmin(String authorizationHeader) {
+        UserEntity user = getCurrentUser(authorizationHeader);
+        if (!isAdminUser(user)) {
+            throw new BusinessException(403, "only ADMIN can access this api");
+        }
+        return user;
+    }
+
+    private boolean isAdminUser(UserEntity user) {
+        if (user == null || user.getId() == null) {
+            return false;
+        }
+        Set<Long> adminIds = parseAdminIdSet();
+        return adminIds.contains(user.getId());
+    }
+
+    private Set<Long> parseAdminIdSet() {
+        Set<Long> result = new HashSet<>();
+        if (!StringUtils.hasText(adminUserIdsConfig)) {
+            result.add(1L);
+            return result;
+        }
+        String[] parts = adminUserIdsConfig.split(",");
+        for (String part : parts) {
+            Long value = parseLong(part);
+            if (value != null && value > 0) {
+                result.add(value);
+            }
+        }
+        if (result.isEmpty()) {
+            result.add(1L);
+        }
+        return result;
     }
 
     private UserEntity findByAccount(String account) {

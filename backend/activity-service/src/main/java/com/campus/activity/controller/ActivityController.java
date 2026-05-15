@@ -32,8 +32,9 @@ public class ActivityController {
                                                   @RequestParam(required = false) String keyword,
                                                   @RequestParam(required = false) Integer categoryId,
                                                   @RequestParam(required = false) Integer status,
-                                                  @RequestParam(required = false) Long publisherUserId) {
-        return ApiResponse.success(activityService.pageActivities(page, size, keyword, categoryId, status, publisherUserId));
+                                                  @RequestParam(required = false) Long publisherUserId,
+                                                  @RequestParam(required = false) Long viewerUserId) {
+        return ApiResponse.success(activityService.pageActivities(page, size, keyword, categoryId, status, publisherUserId, viewerUserId));
     }
 
     @PostMapping
@@ -43,8 +44,9 @@ public class ActivityController {
 
     @GetMapping("/audit/pending")
     public ApiResponse<Map<String, Object>> pendingAudit(@RequestParam(defaultValue = "1") int page,
-                                                          @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.success(activityService.pagePendingAuditActivities(page, size));
+                                                         @RequestParam(defaultValue = "10") int size,
+                                                         @RequestParam(required = false) String operatorRole) {
+        return ApiResponse.success(activityService.pagePendingAuditActivities(page, size, operatorRole));
     }
 
     @GetMapping("/categories")
@@ -91,10 +93,32 @@ public class ActivityController {
         return ApiResponse.success(activityService.pageApplies(id, operatorUserId, status, page, size));
     }
 
+    @GetMapping("/joined")
+    public ApiResponse<Map<String, Object>> joined(@RequestParam Long userId,
+                                                   @RequestParam(required = false) Integer activityStatus,
+                                                   @RequestParam(required = false) Integer applyStatus,
+                                                   @RequestParam(defaultValue = "1") int page,
+                                                   @RequestParam(defaultValue = "10") int size) {
+        return ApiResponse.success(activityService.pageJoinedActivities(userId, activityStatus, applyStatus, page, size));
+    }
+
     @PatchMapping("/{id}/applies/{applyId}/review")
     public ApiResponse<ActivityApply> reviewApply(@PathVariable Long id,
                                                   @PathVariable Long applyId,
                                                   @RequestBody ActivityApplyReviewRequest request) {
         return ApiResponse.success(activityService.reviewApply(id, applyId, request));
+    }
+
+    @PatchMapping("/{id}/stop")
+    public ApiResponse<Activity> stopActivity(@PathVariable Long id,
+                                              @RequestParam Long operatorUserId) {
+        return ApiResponse.success(activityService.stopActivity(id, operatorUserId));
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Boolean> deleteActivity(@PathVariable Long id,
+                                               @RequestParam Long operatorUserId) {
+        activityService.deleteActivity(id, operatorUserId);
+        return ApiResponse.success(true);
     }
 }

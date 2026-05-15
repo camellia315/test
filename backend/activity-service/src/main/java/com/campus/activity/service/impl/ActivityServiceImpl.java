@@ -23,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,20 +48,24 @@ public class ActivityServiceImpl implements ActivityService {
 
     private static final int FLAG_TRUE = 1;
     private static final Set<String> PUBLISH_ALLOWED_ROLES = Set.of("CLUB_ADMIN", "ADMIN");
+    private static final Set<String> AUDIT_ALLOWED_ROLES = Set.of("ADMIN");
 
     private final ActivityMapper activityMapper;
     private final ActivityApplyMapper activityApplyMapper;
     private final ActivityAuditMapper activityAuditMapper;
     private final ActivityCategoryMapper activityCategoryMapper;
+    private final ActivityNotificationService activityNotificationService;
 
     public ActivityServiceImpl(ActivityMapper activityMapper,
                                ActivityApplyMapper activityApplyMapper,
                                ActivityAuditMapper activityAuditMapper,
-                               ActivityCategoryMapper activityCategoryMapper) {
+                               ActivityCategoryMapper activityCategoryMapper,
+                               ActivityNotificationService activityNotificationService) {
         this.activityMapper = activityMapper;
         this.activityApplyMapper = activityApplyMapper;
         this.activityAuditMapper = activityAuditMapper;
         this.activityCategoryMapper = activityCategoryMapper;
+        this.activityNotificationService = activityNotificationService;
     }
 
     @Override
@@ -68,7 +74,8 @@ public class ActivityServiceImpl implements ActivityService {
                                               String keyword,
                                               Integer categoryId,
                                               Integer status,
-                                              Long publisherUserId) {
+                                              Long publisherUserId,
+                                              Long viewerUserId) {
         syncEndedActivities();
 
         Page<Activity> pageReq = new Page<>(normalizePage(page), normalizeSize(size));
@@ -79,15 +86,25 @@ public class ActivityServiceImpl implements ActivityService {
         if (categoryId != null) {
             wrapper.eq(Activity::getCategoryId, categoryId);
         }
-        if (status != null) {
-            wrapper.eq(Activity::getStatus, status);
-        }
         if (publisherUserId != null) {
             wrapper.eq(Activity::getUserId, publisherUserId);
+            if (status != null) {
+                wrapper.eq(Activity::getStatus, status);
+            }
+        } else {
+            wrapper.in(Activity::getStatus, ACTIVITY_ENROLLING, ACTIVITY_ENDED);
+            if (status != null) {
+                if (status == ACTIVITY_ENROLLING || status == ACTIVITY_ENDED) {
+                    wrapper.eq(Activity::getStatus, status);
+                } else {
+                    wrapper.eq(Activity::getStatus, -1);
+                }
+            }
         }
         wrapper.orderByDesc(Activity::getCreateTime);
 
         Page<Activity> result = activityMapper.selectPage(pageReq, wrapper);
+        attachCurrentUserApplyStatus(result.getRecords(), viewerUserId);
         return toPageData(result);
     }
 
@@ -136,14 +153,17 @@ public class ActivityServiceImpl implements ActivityService {
         activity.setApplyAuditRequired(Boolean.TRUE.equals(request.getApplyAuditRequired()) ? FLAG_TRUE : 0);
         activity.setClubId(request.getClubId());
         activity.setUserId(request.getUserId());
+        activity.setOrganizerId(request.getUserId());
         activity.setCreateTime(LocalDateTime.now());
 
         activityMapper.insert(activity);
+        activityNotificationService.notifyAdminsPendingAudit(activity);
         return activity;
     }
 
     @Override
-    public Map<String, Object> pagePendingAuditActivities(int page, int size) {
+    public Map<String, Object> pagePendingAuditActivities(int page, int size, String operatorRole) {
+        validateAuditRole(operatorRole);
         Page<Activity> pageReq = new Page<>(normalizePage(page), normalizeSize(size));
         LambdaQueryWrapper<Activity> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Activity::getStatus, ACTIVITY_PENDING_AUDIT);
@@ -160,6 +180,7 @@ public class ActivityServiceImpl implements ActivityService {
         if (request.getAuditorId() == null) {
             throw new BusinessException(400, "auditorId is required");
         }
+        validateAuditRole(request.getAuditorRole());
         if (request.getStatus() == null || (request.getStatus() != AUDIT_APPROVED && request.getStatus() != AUDIT_REJECTED)) {
             throw new BusinessException(400, "status must be 1(approved) or 2(rejected)");
         }
@@ -183,8 +204,10 @@ public class ActivityServiceImpl implements ActivityService {
         if (request.getStatus() == AUDIT_APPROVED) {
             int nextStatus = isEnded(activity.getEndTime()) ? ACTIVITY_ENDED : ACTIVITY_ENROLLING;
             activity.setStatus(nextStatus);
+            activityNotificationService.notifyPublisherAuditResult(activity, true, "");
         } else {
             activity.setStatus(ACTIVITY_REJECTED);
+            activityNotificationService.notifyPublisherAuditResult(activity, false, request.getReason());
         }
         activityMapper.updateById(activity);
         return activityMapper.selectById(activityId);
@@ -291,6 +314,86 @@ public class ActivityServiceImpl implements ActivityService {
     }
 
     @Override
+    public Map<String, Object> pageJoinedActivities(Long userId,
+                                                    Integer activityStatus,
+                                                    Integer applyStatus,
+                                                    int page,
+                                                    int size) {
+        if (userId == null || userId <= 0) {
+            throw new BusinessException(400, "userId is required");
+        }
+        syncEndedActivities();
+
+        Page<ActivityApply> pageReq = new Page<>(normalizePage(page), normalizeSize(size));
+        LambdaQueryWrapper<ActivityApply> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ActivityApply::getUserId, userId);
+        if (applyStatus != null) {
+            if (applyStatus < APPLY_PENDING || applyStatus > APPLY_CANCELED) {
+                throw new BusinessException(400, "applyStatus must be 0-3");
+            }
+            wrapper.eq(ActivityApply::getStatus, applyStatus);
+        } else {
+            wrapper.ne(ActivityApply::getStatus, APPLY_CANCELED);
+        }
+        if (activityStatus != null) {
+            if (activityStatus != ACTIVITY_ENROLLING && activityStatus != ACTIVITY_ENDED) {
+                throw new BusinessException(400, "activityStatus must be 1 or 2");
+            }
+            wrapper.inSql(ActivityApply::getActivityId, "SELECT id FROM activity WHERE status = " + activityStatus);
+        }
+        wrapper.orderByDesc(ActivityApply::getApplyTime).orderByDesc(ActivityApply::getId);
+
+        Page<ActivityApply> result = activityApplyMapper.selectPage(pageReq, wrapper);
+        List<ActivityApply> applyRecords = result.getRecords();
+        if (applyRecords == null || applyRecords.isEmpty()) {
+            Map<String, Object> empty = toPageData(result);
+            empty.put("records", new ArrayList<>());
+            return empty;
+        }
+
+        List<Long> activityIds = applyRecords.stream()
+                .map(ActivityApply::getActivityId)
+                .distinct()
+                .toList();
+        Map<Long, Activity> activityMap = new HashMap<>();
+        for (Activity activity : activityMapper.selectBatchIds(activityIds)) {
+            if (activity != null && activity.getId() != null) {
+                activityMap.put(activity.getId(), activity);
+            }
+        }
+
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (ActivityApply apply : applyRecords) {
+            Activity activity = activityMap.get(apply.getActivityId());
+            if (activity == null) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("applyId", apply.getId());
+            item.put("applyStatus", apply.getStatus());
+            item.put("applyTime", apply.getApplyTime());
+            item.put("activityId", activity.getId());
+            item.put("title", activity.getTitle());
+            item.put("categoryId", activity.getCategoryId());
+            item.put("coverImage", activity.getCoverImage());
+            item.put("description", activity.getDescription());
+            item.put("location", activity.getLocation());
+            item.put("startTime", activity.getStartTime());
+            item.put("endTime", activity.getEndTime());
+            item.put("maxParticipants", activity.getMaxParticipants());
+            item.put("currentParticipants", activity.getCurrentParticipants());
+            item.put("activityStatus", activity.getStatus());
+            item.put("applyAuditRequired", activity.getApplyAuditRequired());
+            item.put("publisherUserId", activity.getUserId());
+            records.add(item);
+        }
+
+        Map<String, Object> pageData = toPageData(result);
+        pageData.put("records", records);
+        return pageData;
+    }
+
+    @Override
     @Transactional
     public ActivityApply reviewApply(Long activityId, Long applyId, ActivityApplyReviewRequest request) {
         if (request == null) {
@@ -328,6 +431,50 @@ public class ActivityServiceImpl implements ActivityService {
         }
         activityApplyMapper.updateById(apply);
         return activityApplyMapper.selectById(applyId);
+    }
+
+    @Override
+    @Transactional
+    public Activity stopActivity(Long activityId, Long operatorUserId) {
+        if (operatorUserId == null || operatorUserId <= 0) {
+            throw new BusinessException(400, "operatorUserId is required");
+        }
+        Activity activity = getActivityOrThrow(activityId);
+        ensurePublisherOperator(activity, operatorUserId);
+        refreshEndedStatus(activity);
+        Activity latest = activityMapper.selectById(activityId);
+        if (latest == null) {
+            throw new BusinessException(404, "activity not found");
+        }
+        if (latest.getStatus() != null && latest.getStatus() == ACTIVITY_ENDED) {
+            return latest;
+        }
+        if (latest.getStatus() == null || latest.getStatus() != ACTIVITY_ENROLLING) {
+            throw new BusinessException(409, "only enrolling activity can stop apply");
+        }
+        latest.setStatus(ACTIVITY_ENDED);
+        activityMapper.updateById(latest);
+        return activityMapper.selectById(activityId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteActivity(Long activityId, Long operatorUserId) {
+        if (operatorUserId == null || operatorUserId <= 0) {
+            throw new BusinessException(400, "operatorUserId is required");
+        }
+        Activity activity = getActivityOrThrow(activityId);
+        ensurePublisherOperator(activity, operatorUserId);
+
+        LambdaQueryWrapper<ActivityApply> applyWrapper = new LambdaQueryWrapper<>();
+        applyWrapper.eq(ActivityApply::getActivityId, activityId);
+        activityApplyMapper.delete(applyWrapper);
+
+        LambdaQueryWrapper<ActivityAudit> auditWrapper = new LambdaQueryWrapper<>();
+        auditWrapper.eq(ActivityAudit::getActivityId, activityId);
+        activityAuditMapper.delete(auditWrapper);
+
+        activityMapper.deleteById(activityId);
     }
 
     @Override
@@ -397,6 +544,18 @@ public class ActivityServiceImpl implements ActivityService {
         return endTime != null && !endTime.isAfter(LocalDateTime.now());
     }
 
+    private void ensurePublisherOperator(Activity activity, Long operatorUserId) {
+        if (activity == null || activity.getId() == null) {
+            throw new BusinessException(404, "activity not found");
+        }
+        if (operatorUserId == null || operatorUserId <= 0) {
+            throw new BusinessException(400, "operatorUserId is required");
+        }
+        if (activity.getUserId() == null || !activity.getUserId().equals(operatorUserId)) {
+            throw new BusinessException(403, "only activity publisher can operate this activity");
+        }
+    }
+
     private void validatePublishRole(String publisherRole) {
         if (!StringUtils.hasText(publisherRole)) {
             return;
@@ -404,6 +563,49 @@ public class ActivityServiceImpl implements ActivityService {
         String role = publisherRole.trim().toUpperCase();
         if (!PUBLISH_ALLOWED_ROLES.contains(role)) {
             throw new BusinessException(403, "only CLUB_ADMIN or ADMIN can publish activity");
+        }
+    }
+
+    private void validateAuditRole(String roleValue) {
+        if (!StringUtils.hasText(roleValue)) {
+            throw new BusinessException(403, "only ADMIN can audit activity");
+        }
+        String role = roleValue.trim().toUpperCase();
+        if (!AUDIT_ALLOWED_ROLES.contains(role)) {
+            throw new BusinessException(403, "only ADMIN can audit activity");
+        }
+    }
+
+    private void attachCurrentUserApplyStatus(List<Activity> records, Long viewerUserId) {
+        if (viewerUserId == null || viewerUserId <= 0 || records == null || records.isEmpty()) {
+            return;
+        }
+
+        List<Long> activityIds = new ArrayList<>();
+        for (Activity record : records) {
+            if (record != null && record.getId() != null) {
+                activityIds.add(record.getId());
+            }
+        }
+        if (activityIds.isEmpty()) {
+            return;
+        }
+
+        LambdaQueryWrapper<ActivityApply> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ActivityApply::getUserId, viewerUserId);
+        wrapper.in(ActivityApply::getActivityId, activityIds);
+
+        Map<Long, Integer> statusMap = new HashMap<>();
+        for (ActivityApply apply : activityApplyMapper.selectList(wrapper)) {
+            if (apply != null && apply.getActivityId() != null) {
+                statusMap.put(apply.getActivityId(), apply.getStatus());
+            }
+        }
+
+        for (Activity record : records) {
+            if (record != null && record.getId() != null) {
+                record.setCurrentUserApplyStatus(statusMap.get(record.getId()));
+            }
         }
     }
 

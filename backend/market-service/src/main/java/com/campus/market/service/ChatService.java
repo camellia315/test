@@ -15,8 +15,11 @@ public interface ChatService {
 
     List<ChatSession> listSessions(Long userId);
 
+    ChatSession ensureSession(Long userId, Long otherUserId);
+
     Map<String, Object> markRead(ChatReadRequest request);
 
     Map<String, Object> unreadSummary(Long userId);
-}
 
+    Map<String, Object> deleteSession(Long userId, Long otherUserId);
+}

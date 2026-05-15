@@ -19,6 +19,10 @@ public class MarketOrder {
     private BigDecimal price;
     private Integer status;
     private String remark;
+    private Integer payStatus;
+    private LocalDateTime payTime;
+    private String payChannel;
+    private String payOrderNo;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     @TableField(exist = false)
@@ -88,6 +92,38 @@ public class MarketOrder {
 
     public void setRemark(String remark) {
         this.remark = remark;
+    }
+
+    public Integer getPayStatus() {
+        return payStatus;
+    }
+
+    public void setPayStatus(Integer payStatus) {
+        this.payStatus = payStatus;
+    }
+
+    public LocalDateTime getPayTime() {
+        return payTime;
+    }
+
+    public void setPayTime(LocalDateTime payTime) {
+        this.payTime = payTime;
+    }
+
+    public String getPayChannel() {
+        return payChannel;
+    }
+
+    public void setPayChannel(String payChannel) {
+        this.payChannel = payChannel;
+    }
+
+    public String getPayOrderNo() {
+        return payOrderNo;
+    }
+
+    public void setPayOrderNo(String payOrderNo) {
+        this.payOrderNo = payOrderNo;
     }
 
     public LocalDateTime getCreateTime() {

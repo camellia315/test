@@ -46,6 +46,7 @@ public class ActivitySchemaCompatibilityRunner implements ApplicationRunner {
                 "apply_audit_required TINYINT DEFAULT 0 COMMENT '报名是否需要审核：0-否 1-是'," +
                 "club_id BIGINT COMMENT '社团ID'," +
                 "user_id BIGINT NOT NULL DEFAULT 0 COMMENT '发布者ID'," +
+                "organizer_id BIGINT NOT NULL DEFAULT 0 COMMENT '组织者ID'," +
                 "create_time DATETIME DEFAULT CURRENT_TIMESTAMP," +
                 "PRIMARY KEY (id)" +
                 ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='活动表'");
@@ -98,8 +99,12 @@ public class ActivitySchemaCompatibilityRunner implements ApplicationRunner {
                 "ALTER TABLE activity ADD COLUMN club_id BIGINT COMMENT '社团ID'");
         ensureColumn("activity", "user_id",
                 "ALTER TABLE activity ADD COLUMN user_id BIGINT NOT NULL DEFAULT 0 COMMENT '发布者ID'");
+        ensureColumn("activity", "organizer_id",
+                "ALTER TABLE activity ADD COLUMN organizer_id BIGINT NOT NULL DEFAULT 0 COMMENT '组织者ID'");
         ensureColumn("activity", "create_time",
                 "ALTER TABLE activity ADD COLUMN create_time DATETIME DEFAULT CURRENT_TIMESTAMP");
+
+        jdbcTemplate.execute("UPDATE activity SET organizer_id = user_id WHERE organizer_id = 0 AND user_id IS NOT NULL");
 
         ensureColumn("activity_apply", "activity_id",
                 "ALTER TABLE activity_apply ADD COLUMN activity_id BIGINT NOT NULL DEFAULT 0");
@@ -157,4 +162,3 @@ public class ActivitySchemaCompatibilityRunner implements ApplicationRunner {
         jdbcTemplate.execute(ddl);
     }
 }
-

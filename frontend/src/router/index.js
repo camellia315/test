@@ -1,17 +1,28 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { checkStatsStartupHealth } from '../api/stats'
-import { isLoggedIn } from '../utils/auth'
+import { fetchUserRoles } from '../api/user'
+import { getRoles, isLoggedIn, setRoles } from '../utils/auth'
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/login', component: () => import('../views/LoginView.vue'), meta: { public: true } },
   { path: '/dashboard', component: () => import('../views/DashboardView.vue') },
+  { path: '/messages', component: () => import('../views/MessagesView.vue') },
+  { path: '/help', component: () => import('../views/HelpView.vue') },
+  { path: '/personal', component: () => import('../views/PersonalCenterView.vue') },
   { path: '/profile', component: () => import('../views/ProfileView.vue') },
+  { path: '/space/:userId', component: () => import('../views/UserSpaceView.vue') },
   { path: '/lost-found', component: () => import('../views/LostFoundView.vue') },
+  { path: '/lost-found/private-chat', component: () => import('../views/LostFoundPrivateChatView.vue') },
   { path: '/activities', component: () => import('../views/ActivityView.vue') },
   { path: '/market', component: () => import('../views/MarketView.vue') },
-  { path: '/system', component: () => import('../views/SystemView.vue') }
+  { path: '/chat-center', component: () => import('../views/ChatCenterView.vue') },
+  { path: '/system', component: () => import('../views/SystemView.vue'), meta: { requiresAdmin: true } },
+  { path: '/admin/users', component: () => import('../views/SystemView.vue'), meta: { requiresAdmin: true } },
+  { path: '/admin/content-audit', component: () => import('../views/admin/ContentAuditView.vue'), meta: { requiresAdmin: true } },
+  { path: '/admin/analytics', component: () => import('../views/admin/AdminAnalyticsView.vue'), meta: { requiresAdmin: true } },
+  { path: '/admin/settings', component: () => import('../views/admin/AdminSettingsView.vue'), meta: { requiresAdmin: true } }
 ]
 
 const router = createRouter({
@@ -78,6 +89,23 @@ async function ensureDashboardHealth() {
   return detail
 }
 
+async function ensureRolesLoaded() {
+  const cached = getRoles()
+  if (Array.isArray(cached) && cached.length > 0) {
+    return cached
+  }
+  try {
+    const payload = await fetchUserRoles()
+    if (payload && Number(payload.code) === 0 && Array.isArray(payload.data?.roles)) {
+      setRoles(payload.data.roles)
+      return payload.data.roles
+    }
+  } catch {
+  }
+  setRoles([])
+  return []
+}
+
 router.beforeEach(async (to, from, next) => {
   if (to.meta.public) {
     if (to.path === '/login' && isLoggedIn()) {
@@ -88,7 +116,16 @@ router.beforeEach(async (to, from, next) => {
     return
   }
   if (!isLoggedIn()) {
+    setRoles([])
     next('/login')
+    return
+  }
+
+  const roles = await ensureRolesLoaded()
+  const isAdmin = roles.includes('ADMIN')
+  if (to.meta.requiresAdmin && !isAdmin) {
+    ElMessage.warning('该页面仅管理员可见')
+    next('/dashboard')
     return
   }
 
@@ -97,7 +134,7 @@ router.beforeEach(async (to, from, next) => {
       const detail = await ensureDashboardHealth()
       if (detail.overallUp !== true) {
         ElMessage.error(buildHealthFailMessage(detail))
-        next('/system')
+        next('/help')
         return
       }
     } catch (error) {
@@ -111,7 +148,7 @@ router.beforeEach(async (to, from, next) => {
         return
       }
       ElMessage.error(buildHealthRequestErrorMessage(error))
-      next('/system')
+      next('/help')
       return
     }
   }
@@ -120,3 +157,4 @@ router.beforeEach(async (to, from, next) => {
 })
 
 export default router
+

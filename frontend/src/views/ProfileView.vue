@@ -26,6 +26,22 @@
             <el-form-item label="手机号">
               <el-input v-model="profileForm.phone" placeholder="请输入手机号" />
             </el-form-item>
+            <el-form-item label="头像">
+              <single-image-upload v-model="profileForm.avatarUrl" type="avatar" />
+            </el-form-item>
+            <el-form-item label="背景图">
+              <single-image-upload v-model="profileForm.homepageCover" type="avatar" />
+            </el-form-item>
+            <el-form-item label="个人简介">
+              <el-input
+                v-model="profileForm.bio"
+                type="textarea"
+                :rows="3"
+                maxlength="512"
+                show-word-limit
+                placeholder="写点个人介绍，让别人更快认识你"
+              />
+            </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="profileLoading" @click="submitProfile">
                 保存资料
@@ -67,6 +83,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import SingleImageUpload from '../components/upload/SingleImageUpload.vue'
 import { changePassword, fetchCurrentUser, updateCurrentUser } from '../api/user'
 import { getUser, setUser } from '../utils/auth'
 
@@ -77,7 +94,10 @@ const passwordLoading = ref(false)
 const profileForm = reactive({
   userId: '',
   email: '',
-  phone: ''
+  phone: '',
+  avatarUrl: '',
+  homepageCover: '',
+  bio: ''
 })
 
 const passwordForm = reactive({
@@ -101,6 +121,9 @@ const loadUserInfo = async () => {
     profileForm.userId = data.userId || ''
     profileForm.email = data.email || ''
     profileForm.phone = data.phone || ''
+    profileForm.avatarUrl = data.avatarUrl || ''
+    profileForm.homepageCover = data.homepageCover || ''
+    profileForm.bio = data.bio || ''
   } catch (error) {
     ElMessage.error({ message: error.message || '获取用户信息失败', duration: 1500 })
   }
@@ -112,7 +135,10 @@ const submitProfile = async () => {
     const data = checkResp(await updateCurrentUser({
       userId: profileForm.userId.trim(),
       email: profileForm.email.trim(),
-      phone: profileForm.phone.trim()
+      phone: profileForm.phone.trim(),
+      avatarUrl: profileForm.avatarUrl || '',
+      homepageCover: profileForm.homepageCover || '',
+      bio: profileForm.bio || ''
     }), '更新资料失败')
     userInfo.value = data
     setUser(data)

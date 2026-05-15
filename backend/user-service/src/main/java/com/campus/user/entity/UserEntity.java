@@ -16,6 +16,9 @@ public class UserEntity {
     private String passwordHash;
     private String email;
     private String phone;
+    private String avatarUrl;
+    private String bio;
+    private String homepageCover;
     private Integer status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -74,6 +77,30 @@ public class UserEntity {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
+    }
+
+    public String getHomepageCover() {
+        return homepageCover;
+    }
+
+    public void setHomepageCover(String homepageCover) {
+        this.homepageCover = homepageCover;
     }
 
     public Integer getStatus() {

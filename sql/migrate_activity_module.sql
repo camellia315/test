@@ -28,6 +28,7 @@ CREATE TABLE activity (
     apply_audit_required TINYINT DEFAULT 0 COMMENT '报名是否需要审核：0-否 1-是',
     club_id BIGINT COMMENT '社团ID',
     user_id BIGINT NOT NULL COMMENT '发布者ID',
+    organizer_id BIGINT NOT NULL COMMENT '组织者ID',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id)
 );

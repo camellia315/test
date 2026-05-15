@@ -19,7 +19,7 @@ mybatis-plus:
     map-underscore-to-camel-case: true
 
 qiniu:
-  enabled: false
+  enabled: ${QINIU_ENABLED:true}
   prefix:
     lost-found: lost-found/
     product: product/

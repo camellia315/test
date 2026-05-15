@@ -3,9 +3,9 @@
     <section class="hero-card">
       <div>
         <h2>系统管理中心</h2>
-        <p>集中查看服务状态、管理用户账号启停，减少排障和运营操作成本。</p>
+        <p>集中管理用户账号与状态，降低日常运营维护成本。</p>
       </div>
-      <el-button type="primary" :loading="loading.health || loading.overview || loading.users" @click="loadAll">
+      <el-button type="primary" :loading="loading.overview || loading.users" @click="loadAll">
         刷新全部
       </el-button>
     </section>
@@ -36,29 +36,6 @@
         </div>
       </el-col>
     </el-row>
-
-    <div class="panel-card">
-      <div class="panel-head">
-        <h3>启动健康检查</h3>
-        <div class="panel-actions">
-          <el-tag :type="health.overallUp === true ? 'success' : 'danger'" effect="dark">
-            {{ health.overallUp === true ? 'ALL UP' : 'PARTIAL DOWN' }}
-          </el-tag>
-          <el-button size="small" :loading="loading.health" @click="loadHealth">刷新状态</el-button>
-        </div>
-      </div>
-
-      <el-table :data="serviceRows" size="small" border>
-        <el-table-column prop="name" label="服务" width="180" />
-        <el-table-column label="状态" width="140">
-          <template #default="{ row }">
-            <el-tag :type="row.up ? 'success' : 'danger'">{{ row.up ? '运行中' : '异常' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="message" label="说明" min-width="220" />
-      </el-table>
-      <p class="health-time">检查时间：{{ formatTime(health.checkedAt) }}</p>
-    </div>
 
     <div class="panel-card">
       <div class="panel-head">
@@ -133,13 +110,11 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive } from 'vue'
+import { onMounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { checkStatsStartupHealth } from '../api/stats'
 import { getAdminUserOverview, pageAdminUsers, updateAdminUserStatus } from '../api/user'
 
 const loading = reactive({
-  health: false,
   overview: false,
   users: false
 })
@@ -149,14 +124,6 @@ const overview = reactive({
   activeUsers: 0,
   disabledUsers: 0,
   todayNewUsers: 0
-})
-
-const health = reactive({
-  overallUp: false,
-  checkedAt: '',
-  gateway: {},
-  user: {},
-  stats: {}
 })
 
 const query = reactive({
@@ -170,27 +137,6 @@ const userPage = reactive({
   current: 1,
   size: 10
 })
-
-const serviceRows = computed(() => ([
-  {
-    key: 'gateway',
-    name: 'api-gateway',
-    up: health.gateway?.up === true,
-    message: health.gateway?.message || '-'
-  },
-  {
-    key: 'user',
-    name: 'user-service',
-    up: health.user?.up === true,
-    message: health.user?.message || '-'
-  },
-  {
-    key: 'stats',
-    name: 'stats-service',
-    up: health.stats?.up === true,
-    message: health.stats?.message || '-'
-  }
-]))
 
 function unwrap(resp, fallbackMsg) {
   if (!resp || Number(resp.code) !== 0) {
@@ -206,22 +152,6 @@ function formatNum(value) {
 function formatTime(value) {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 19)
-}
-
-async function loadHealth() {
-  loading.health = true
-  try {
-    const data = unwrap(await checkStatsStartupHealth(), '加载健康检查失败')
-    health.overallUp = data.overallUp === true
-    health.checkedAt = data.checkedAt || ''
-    health.gateway = data.gateway || {}
-    health.user = data.user || {}
-    health.stats = data.stats || {}
-  } catch (error) {
-    ElMessage.error(error.message || '加载健康检查失败')
-  } finally {
-    loading.health = false
-  }
 }
 
 async function loadOverview() {
@@ -283,7 +213,7 @@ async function changeUserStatus(row, status) {
 }
 
 async function loadAll() {
-  await Promise.all([loadHealth(), loadOverview(), loadUsers(1)])
+  await Promise.all([loadOverview(), loadUsers(1)])
 }
 
 onMounted(() => {
@@ -369,23 +299,11 @@ onMounted(() => {
   color: #0f172a;
 }
 
-.panel-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .toolbar {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.health-time {
-  margin: 10px 0 0;
-  color: #64748b;
-  font-size: 12px;
 }
 
 .pager-wrap {

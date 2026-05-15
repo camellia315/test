@@ -19,6 +19,7 @@ public class LostFoundItem {
     private String itemType;
     private String status;
     private LocalDateTime createdAt;
+    private LocalDateTime recoveredAt;
 
     public Long getId() {
         return id;
@@ -98,5 +99,13 @@ public class LostFoundItem {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getRecoveredAt() {
+        return recoveredAt;
+    }
+
+    public void setRecoveredAt(LocalDateTime recoveredAt) {
+        this.recoveredAt = recoveredAt;
     }
 }

@@ -1,6 +1,6 @@
-package com.campus.activity.dto;
+package com.campus.lostfound.dto;
 
-public class ActivityAuditRequest {
+public class LostFoundAuditRequest {
     private Long auditorId;
     private String auditorRole;
     private Integer status;

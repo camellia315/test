@@ -50,6 +50,10 @@ export function updateOrderStatus(id, payload) {
   return http.patch(`/api/market/orders/${id}/status`, payload)
 }
 
+export function simulateOrderPay(id, payload) {
+  return http.post(`/api/market/orders/${id}/pay/simulate`, payload)
+}
+
 export function pageOrders(params) {
   return http.get('/api/market/orders', { params })
 }
@@ -66,10 +70,17 @@ export function listChatSessions(params) {
   return http.get('/api/market/chat/sessions', { params })
 }
 
+export function deleteChatSession(params) {
+  return http.delete('/api/market/chat/sessions', { params })
+}
+
 export function pageChatMessages(params) {
   return http.get('/api/market/chat/messages', { params })
 }
 
+export function ensureChatSession(payload) {
+  return http.post('/api/market/chat/sessions/ensure', payload)
+}
 export function sendChatMessage(payload) {
   return http.post('/api/market/chat/messages', payload)
 }

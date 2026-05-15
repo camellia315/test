@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS user (
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(128),
     phone VARCHAR(32),
+    avatar_url VARCHAR(512),
+    bio VARCHAR(512),
+    homepage_cover VARCHAR(512),
     status TINYINT DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -64,6 +67,14 @@ CREATE TABLE IF NOT EXISTS user_favorites (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS user_follow (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    follower_id BIGINT NOT NULL,
+    followee_id BIGINT NOT NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_follow_relation (follower_id, followee_id)
+);
+
 CREATE TABLE IF NOT EXISTS lf_category (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(64) NOT NULL
@@ -79,7 +90,8 @@ CREATE TABLE IF NOT EXISTS lost_found (
     location_text VARCHAR(255),
     item_type VARCHAR(16) NOT NULL,
     status VARCHAR(32) DEFAULT 'SEARCHING',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    recovered_at DATETIME NULL
 );
 
 CREATE TABLE IF NOT EXISTS lf_comment (
@@ -88,6 +100,37 @@ CREATE TABLE IF NOT EXISTS lf_comment (
     user_id BIGINT NOT NULL,
     content VARCHAR(500) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lf_private_message (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    item_id BIGINT NOT NULL,
+    from_user_id BIGINT NOT NULL,
+    to_user_id BIGINT NOT NULL,
+    content VARCHAR(1000) NOT NULL,
+    msg_type TINYINT DEFAULT 1,
+    is_read TINYINT DEFAULT 0,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS lf_private_session (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    item_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    other_user_id BIGINT NOT NULL,
+    last_message VARCHAR(1000),
+    unread_count INT DEFAULT 0,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_lf_ps_user_other_item (item_id, user_id, other_user_id)
+);
+
+CREATE TABLE IF NOT EXISTS lost_found_audit (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    lost_found_id BIGINT NOT NULL,
+    auditor_id BIGINT NOT NULL,
+    status TINYINT COMMENT '1-通过 2-驳回',
+    reason VARCHAR(200),
+    audit_time DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS activity_category (
@@ -110,6 +153,7 @@ CREATE TABLE IF NOT EXISTS activity (
     apply_audit_required TINYINT DEFAULT 0 COMMENT '报名是否需要审核：0-否 1-是',
     club_id BIGINT COMMENT '社团ID',
     user_id BIGINT NOT NULL COMMENT '发布者ID',
+    organizer_id BIGINT NOT NULL COMMENT '组织者ID',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id)
 );
@@ -154,6 +198,8 @@ CREATE TABLE IF NOT EXISTS product (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(10,2) NOT NULL,
+    total_quantity INT DEFAULT 1,
+    sold_quantity INT DEFAULT 0,
     status VARCHAR(32) DEFAULT 'ON_SALE',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -172,6 +218,24 @@ CREATE TABLE IF NOT EXISTS chat_message (
     product_id BIGINT,
     content VARCHAR(1000) NOT NULL,
     sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS market_order (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    order_no VARCHAR(64) NOT NULL,
+    product_id BIGINT NOT NULL,
+    buyer_id BIGINT NOT NULL,
+    seller_id BIGINT NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    status TINYINT DEFAULT 0,
+    remark VARCHAR(500),
+    pay_status TINYINT DEFAULT 0,
+    pay_time DATETIME,
+    pay_channel VARCHAR(32),
+    pay_order_no VARCHAR(64),
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_order_no (order_no)
 );
 
 CREATE TABLE IF NOT EXISTS user_browse_history (
@@ -217,8 +281,10 @@ CREATE TABLE IF NOT EXISTS operation_log (
 CREATE TABLE IF NOT EXISTS message_notification (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    content VARCHAR(1000) NOT NULL,
+    type TINYINT NOT NULL DEFAULT 1 COMMENT '消息类型：1-系统 2-交易 3-活动 4-评论 5-聊天',
+    title VARCHAR(100),
+    content VARCHAR(500),
+    link_url VARCHAR(200),
     is_read TINYINT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
 );

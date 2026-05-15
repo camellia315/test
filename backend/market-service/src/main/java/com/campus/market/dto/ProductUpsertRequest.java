@@ -12,6 +12,7 @@ public class ProductUpsertRequest {
     private Long categoryId;
     private String tags;
     private Long sellerId;
+    private Integer totalQuantity;
 
     public String getTitle() {
         return title;
@@ -84,5 +85,12 @@ public class ProductUpsertRequest {
     public void setSellerId(Long sellerId) {
         this.sellerId = sellerId;
     }
-}
 
+    public Integer getTotalQuantity() {
+        return totalQuantity;
+    }
+
+    public void setTotalQuantity(Integer totalQuantity) {
+        this.totalQuantity = totalQuantity;
+    }
+}

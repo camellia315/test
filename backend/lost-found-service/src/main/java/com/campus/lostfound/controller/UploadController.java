@@ -3,6 +3,7 @@ package com.campus.lostfound.controller;
 import com.campus.common.api.ApiResponse;
 import com.campus.lostfound.service.FileStorageService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -20,9 +21,22 @@ import org.springframework.web.multipart.MultipartFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URL;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 @RestController
 @RequestMapping("/api/upload")
@@ -44,6 +58,15 @@ public class UploadController {
 
     @Value("${upload.local-dir:uploads}")
     private String localDir;
+
+    @Value("${upload.proxy.enabled:true}")
+    private boolean proxyEnabled;
+
+    @Value("${upload.proxy.allow-hosts:img.camellia315.xyz}")
+    private String proxyAllowHosts;
+
+    @Value("${upload.proxy.insecure-ssl:true}")
+    private boolean proxyInsecureSsl;
 
     public UploadController(FileStorageService fileStorageService) {
         this.fileStorageService = fileStorageService;
@@ -141,12 +164,121 @@ public class UploadController {
         }
     }
 
+    @GetMapping("/proxy")
+    public ResponseEntity<Resource> proxyImage(@RequestParam("url") String remoteUrl) {
+        if (!proxyEnabled) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!StringUtils.hasText(remoteUrl)) {
+            return ResponseEntity.badRequest().build();
+        }
+        URI uri;
+        try {
+            uri = URI.create(remoteUrl.trim());
+        } catch (Exception ex) {
+            return ResponseEntity.badRequest().build();
+        }
+        String scheme = uri.getScheme();
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+            return ResponseEntity.badRequest().build();
+        }
+        String host = uri.getHost();
+        if (!isProxyHostAllowed(host)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        try {
+            HttpURLConnection connection = openRemoteConnection(uri.toString());
+            connection.setInstanceFollowRedirects(true);
+            connection.setConnectTimeout(6000);
+            connection.setReadTimeout(15000);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "image/*,*/*;q=0.8");
+            connection.setRequestProperty("User-Agent", "CampusImageProxy/1.0");
+
+            int statusCode = connection.getResponseCode();
+            if (statusCode < 200 || statusCode >= 300) {
+                return ResponseEntity.status(statusCode).build();
+            }
+
+            byte[] bytes;
+            try (InputStream stream = connection.getInputStream()) {
+                bytes = stream.readAllBytes();
+            }
+            if (bytes == null || bytes.length == 0) {
+                return ResponseEntity.notFound().build();
+            }
+
+            MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+            String contentType = connection.getContentType();
+            if (StringUtils.hasText(contentType)) {
+                try {
+                    mediaType = MediaType.parseMediaType(contentType);
+                } catch (Exception ignored) {
+                }
+            }
+            return ResponseEntity.ok()
+                    .contentType(mediaType)
+                    .header(HttpHeaders.CACHE_CONTROL, "public, max-age=300")
+                    .body(new ByteArrayResource(bytes));
+        } catch (Exception ex) {
+            return ResponseEntity.status(502).build();
+        }
+    }
+
+    private boolean isProxyHostAllowed(String host) {
+        if (!StringUtils.hasText(host)) {
+            return false;
+        }
+        String normalized = host.trim().toLowerCase(Locale.ROOT);
+        Set<String> allowList = parseAllowHosts();
+        if (allowList.contains(normalized)) {
+            return true;
+        }
+        return allowList.stream().anyMatch(item -> item.startsWith(".") && normalized.endsWith(item));
+    }
+
+    private Set<String> parseAllowHosts() {
+        String raw = StringUtils.hasText(proxyAllowHosts) ? proxyAllowHosts : "img.camellia315.xyz";
+        return java.util.Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+    }
+
+    private HttpURLConnection openRemoteConnection(String url) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        if (connection instanceof HttpsURLConnection && proxyInsecureSsl) {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(null, new TrustManager[]{new X509TrustManager() {
+                @Override
+                public void checkClientTrusted(X509Certificate[] chain, String authType) {
+                }
+
+                @Override
+                public void checkServerTrusted(X509Certificate[] chain, String authType) {
+                }
+
+                @Override
+                public X509Certificate[] getAcceptedIssuers() {
+                    return new X509Certificate[0];
+                }
+            }}, new SecureRandom());
+            HttpsURLConnection https = (HttpsURLConnection) connection;
+            https.setSSLSocketFactory(sslContext.getSocketFactory());
+            https.setHostnameVerifier((hostname, session) -> true);
+        }
+        return connection;
+    }
+
     private String getPrefix(String type) {
         if (!StringUtils.hasText(type)) {
             return productPrefix;
         }
-        switch (type) {
+        switch (type.trim().toLowerCase(Locale.ROOT)) {
             case "product":
+            case "market":
                 return productPrefix;
             case "lost-found":
                 return lostFoundPrefix;

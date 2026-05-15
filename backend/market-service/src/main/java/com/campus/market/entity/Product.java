@@ -23,6 +23,8 @@ public class Product {
     private Integer status;
     private Integer viewCount;
     private Integer favoriteCount;
+    private Integer totalQuantity;
+    private Integer soldQuantity;
     private Long sellerId;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -128,6 +130,22 @@ public class Product {
         this.favoriteCount = favoriteCount;
     }
 
+    public Integer getTotalQuantity() {
+        return totalQuantity;
+    }
+
+    public void setTotalQuantity(Integer totalQuantity) {
+        this.totalQuantity = totalQuantity;
+    }
+
+    public Integer getSoldQuantity() {
+        return soldQuantity;
+    }
+
+    public void setSoldQuantity(Integer soldQuantity) {
+        this.soldQuantity = soldQuantity;
+    }
+
     public Long getSellerId() {
         return sellerId;
     }
@@ -168,4 +186,3 @@ public class Product {
         this.favorited = favorited;
     }
 }
-

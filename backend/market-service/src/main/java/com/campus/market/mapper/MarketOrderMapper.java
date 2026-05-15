@@ -11,5 +11,7 @@ public interface MarketOrderMapper extends BaseMapper<MarketOrder> {
 
     @Select("SELECT COUNT(1) FROM market_order WHERE product_id = #{productId} AND status IN (0, 1)")
     int countActiveOrdersByProduct(@Param("productId") Long productId);
-}
 
+    @Select("SELECT COUNT(1) FROM market_order WHERE product_id = #{productId} AND status = 0 AND IFNULL(pay_status, 0) = 0")
+    int countPendingUnpaidOrdersByProduct(@Param("productId") Long productId);
+}
